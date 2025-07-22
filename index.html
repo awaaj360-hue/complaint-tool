@@ -429,6 +429,110 @@
                                 `_Please review the complaint._`;
                 setWhatsAppInfo({ isOpen: true, message: message, link: groupInviteLink });
             };
+
+            const handleExportToExcel = () => {
+                if (filteredAndSortedComplaints.length === 0) return;
+                const headers = ['Complaint ID', 'Description', 'Tower', 'Floor', 'Particular Location', 'Priority', 'Status', 'Open Date', 'Close Date', 'Complaint Given by', 'Assigned To', 'Department', 'Comments', 'Created At'];
+                
+                const formatDateForCSV = (dateString) => {
+                    if (!dateString) return '';
+                    try {
+                        const date = new Date(dateString);
+                        const year = date.getFullYear();
+                        const month = String(date.getMonth() + 1).padStart(2, '0');
+                        const day = String(date.getDate()).padStart(2, '0');
+                        return `${year}-${month}-${day}`;
+                    } catch (e) {
+                        return dateString;
+                    }
+                };
+
+                const escapeCsvField = (field) => {
+                    const strField = String(field ?? '');
+                    if (strField.includes(',') || strField.includes('"') || strField.includes('\n')) {
+                        return `"${strField.replace(/"/g, '""')}"`;
+                    }
+                    return strField;
+                };
+                const csvRows = [
+                    headers.join(','),
+                    ...filteredAndSortedComplaints.map(c => [
+                        escapeCsvField(c.id), escapeCsvField(c.description), escapeCsvField(c.tower), escapeCsvField(c.floor), escapeCsvField(c.location),
+                        escapeCsvField(c.priority), escapeCsvField(c.status), 
+                        escapeCsvField(formatDateForCSV(c.openDate)),
+                        escapeCsvField(formatDateForCSV(c.closeDate)),
+                        escapeCsvField(c.complaintGivenBy), escapeCsvField(c.assignedTo), escapeCsvField(c.department), 
+                        escapeCsvField(c.comments), 
+                        escapeCsvField(c.createdAt ? new Date(c.createdAt).toISOString() : '')
+                    ].join(','))
+                ];
+                const csvContent = csvRows.join('\n');
+                const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+                const link = document.createElement('a');
+                const url = URL.createObjectURL(blob);
+                link.setAttribute('href', url);
+                link.setAttribute('download', 'complaints_export.csv');
+                link.style.visibility = 'hidden';
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+            };
+
+            const handleImportClick = () => {
+                fileInputRef.current.click();
+            };
+
+            const handleFileChange = (event) => {
+                const file = event.target.files[0];
+                if (!file) return;
+
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    const text = e.target.result;
+                    const rows = text.split('\n').slice(1);
+                    const existingIds = new Set(complaints.map(c => c.id));
+                    const newComplaints = [];
+
+                    const headers = ['id', 'description', 'tower', 'floor', 'location', 'priority', 'status', 'openDate', 'closeDate', 'complaintGivenBy', 'assignedTo', 'department', 'comments', 'createdAt'];
+
+                    rows.forEach(row => {
+                        if (row.trim() === '') return;
+                        const values = row.match(/(".*?"|[^",]+)(?=\s*,|\s*$)/g) || [];
+                        const complaintObj = headers.reduce((obj, header, index) => {
+                            let value = values[index] ? values[index].replace(/"/g, '') : '';
+                            if ((header === 'openDate' || header === 'closeDate' || header === 'createdAt') && value) {
+                                let d;
+                                if (value.includes('/')) {
+                                    const parts = value.split('/');
+                                    d = new Date(parts[2], parts[1] - 1, parts[0]);
+                                } else {
+                                    d = new Date(value);
+                                }
+                                if (!isNaN(d)) {
+                                    value = d.toISOString();
+                                } else {
+                                    value = '';
+                                }
+                            }
+                            obj[header] = value;
+                            return obj;
+                        }, {});
+
+                        if (complaintObj.id && !existingIds.has(complaintObj.id)) {
+                            newComplaints.push({ ...initialFormState, ...complaintObj });
+                        }
+                    });
+
+                    if (newComplaints.length > 0) {
+                        setComplaints(prev => [...prev, ...newComplaints]);
+                        alert(`${newComplaints.length} new complaints imported successfully!`);
+                    } else {
+                        alert("No new complaints found to import.");
+                    }
+                };
+                reader.readAsText(file);
+                event.target.value = null;
+            };
             
             if (isLoading) {
                 return <div className="flex items-center justify-center h-screen bg-gray-100"><div className="text-xl font-semibold">Loading Data...</div></div>;
@@ -455,12 +559,13 @@
                              <div className="flex flex-wrap items-center gap-4">
                                 {isAdmin && (
                                     <React.Fragment>
-                                        <button onClick={() => {}} className="flex items-center gap-2 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors shadow">
+                                        <button onClick={handleExportToExcel} className="flex items-center gap-2 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors shadow">
                                             <Download size={18} /><span>Export to Excel</span>
                                         </button>
-                                        <button onClick={() => {}} className="flex items-center gap-2 bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 transition-colors shadow">
+                                        <button onClick={handleImportClick} className="flex items-center gap-2 bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 transition-colors shadow">
                                             <Upload size={18} /><span>Import from Excel</span>
                                         </button>
+                                        <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" accept=".csv" />
                                         {dashboardStats.closed > 0 && (
                                             <button onClick={() => {}} className="flex items-center gap-2 bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition-colors shadow">
                                                 <Archive size={18} /><span>Archive Closed</span>
