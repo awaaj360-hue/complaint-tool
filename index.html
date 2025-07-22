@@ -22,7 +22,7 @@
     <script type="text/babel" data-type="module">
         // --- Import Firebase modules ---
         import { initializeApp } from 'https://www.gstatic.com/firebasejs/9.15.0/firebase-app.js';
-        import { getAuth, signInAnonymously, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/9.15.0/firebase-auth.js';
+        import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut } from 'https://www.gstatic.com/firebasejs/9.15.0/firebase-auth.js';
         import { getFirestore, collection, doc, onSnapshot, addDoc, updateDoc, deleteDoc, query, setDoc, where, getDocs, writeBatch } from 'https://www.gstatic.com/firebasejs/9.15.0/firebase-firestore.js';
 
         // --- Icon Components ---
@@ -43,6 +43,7 @@
         const ClipboardList = (props) => <Icon {...props}><rect width="8" height="4" x="8" y="2" rx="1" ry="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="M12 11h4"/><path d="M12 16h4"/><path d="M8 11h.01"/><path d="M8 16h.01"/></Icon>;
         const Activity = (props) => <Icon {...props}><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></Icon>;
         const CheckCircle = (props) => <Icon {...props}><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></Icon>;
+        const LogOut = (props) => <Icon {...props}><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" x2="9" y1="12" y2="12"/></Icon>;
         const Users = (props) => <Icon {...props}><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></Icon>;
         const User = (props) => <Icon {...props}><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></Icon>;
 
@@ -59,6 +60,7 @@
             measurementId: "G-4FKLXTNXDB"
         };
         const appId = 'complaint-tool-shared';
+        const ADMIN_EMAIL = 'awaaj360@gmail.com'; // Admin User
 
         const initialFormState = {
             description: '',
@@ -70,6 +72,44 @@
             tower: '', floor: '', location: ''
         };
 
+        // --- Login Screen Component ---
+        function LoginScreen({ auth }) {
+            const [email, setEmail] = useState('');
+            const [password, setPassword] = useState('');
+            const [error, setError] = useState('');
+
+            const handleLogin = async (e) => {
+                e.preventDefault();
+                setError('');
+                try {
+                    await signInWithEmailAndPassword(auth, email, password);
+                } catch (err) {
+                    setError("Failed to log in. Please check your email and password.");
+                    console.error(err);
+                }
+            };
+
+            return (
+                <div className="flex items-center justify-center min-h-screen bg-gray-100">
+                    <div className="w-full max-w-md p-8 space-y-6 bg-white rounded-lg shadow-md">
+                        <h2 className="text-2xl font-bold text-center text-gray-800">Login to Complaint Tool</h2>
+                        <form onSubmit={handleLogin} className="space-y-6">
+                            <div>
+                                <label htmlFor="email" className="text-sm font-medium text-gray-700">Email</label>
+                                <input id="email" type="email" value={email} onChange={e => setEmail(e.target.value)} required className="w-full px-3 py-2 mt-1 border rounded-lg" />
+                            </div>
+                            <div>
+                                <label htmlFor="password" className="text-sm font-medium text-gray-700">Password</label>
+                                <input id="password" type="password" value={password} onChange={e => setPassword(e.target.value)} required className="w-full px-3 py-2 mt-1 border rounded-lg" />
+                            </div>
+                            {error && <p className="text-sm text-red-600">{error}</p>}
+                            <button type="submit" className="w-full px-4 py-2 font-bold text-white bg-blue-600 rounded-lg hover:bg-blue-700">Log In</button>
+                        </form>
+                    </div>
+                </div>
+            );
+        }
+        
         // --- Dashboard Stats Component ---
         function DashboardStats({ stats }) {
             return (
@@ -199,24 +239,23 @@
         }
 
 
-        // --- Main App Component ---
-        function App() {
+        // --- Main Tool Component ---
+        function ComplaintTool({ user, auth }) {
             const [db, setDb] = useState(null);
-            const [userId, setUserId] = useState(null);
             const [complaints, setComplaints] = useState([]);
             const [isLoading, setIsLoading] = useState(true);
-            const [error, setError] = useState(null);
             const [formData, setFormData] = useState(initialFormState);
-            const [view, setView] = useState('admin');
+            const isAdmin = user.email === ADMIN_EMAIL;
+            const fileInputRef = useRef(null);
             
             const listData = {
                 projectImpacts: ['High', 'Medium', 'Low'],
                 priorities: ['Critical', 'High', 'Medium', 'Low'],
                 supervisors: ['Rajan', 'Sudhir', 'Rahul', 'Vishal', 'Doleep', 'Other'],
-                departments: ['IT', 'Operations', 'HR', 'Finance', 'HK','NRI','CBRE','Scurewell','Fire'],
+                departments: ['IT', 'Operations', 'HR', 'Finance'],
                 statuses: ['Open', 'In Progress', 'Closed', 'On Hold'],
                 towers: ['Tower 1', 'Tower 2', 'Tower 3', 'Tower 4', 'Tower 5', 'Tower 6'],
-                floors: ['Basement1','Basement2','Ground Floor', '1st Floor', '2nd Floor', '3rd Floor', '4th Floor', '5th Floor', '6th Floor','Terrace']
+                floors: ['Ground Floor', '1st Floor', '2nd Floor', '3rd Floor', '4th Floor', '5th Floor', '6th Floor']
             };
             
             const [filterBy, setFilterBy] = useState('ALL');
@@ -227,64 +266,24 @@
             const [whatsAppInfo, setWhatsAppInfo] = useState({ isOpen: false, message: '', link: '' });
 
             useEffect(() => {
-                try {
-                    const app = initializeApp(firebaseConfig);
-                    const firestoreDb = getFirestore(app);
-                    setDb(firestoreDb);
-                    
-                    const auth = getAuth(app);
-                    onAuthStateChanged(auth, user => {
-                        if (user) {
-                            setUserId(user.uid);
-                        } else {
-                            signInAnonymously(auth).catch(err => {
-                                console.error("Anonymous sign in failed", err);
-                                setError("Could not authenticate. Please check your connection.");
-                                setIsLoading(false);
-                            });
-                        }
-                    });
-
-                } catch (e) {
-                    console.error("Firebase initialization failed", e);
-                    setError("Application failed to initialize.");
-                    setIsLoading(false);
-                }
+                const firestoreDb = getFirestore(initializeApp(firebaseConfig));
+                setDb(firestoreDb);
             }, []);
 
             useEffect(() => {
-                if (!db || !userId) return;
+                if (!db) return;
 
                 setIsLoading(true);
-                setError(null);
-
-                const connectionTimeout = setTimeout(() => {
-                    if (isLoading) {
-                        setError("Connection timed out. Please check your internet connection, try a different network (like a mobile hotspot), or check for firewalls.");
-                        setIsLoading(false);
-                    }
-                }, 15000);
-
                 const complaintsCollectionPath = `artifacts/${appId}/public/data/complaints`;
                 const q = query(collection(db, complaintsCollectionPath));
                 const unsubscribe = onSnapshot(q, (snapshot) => {
-                    clearTimeout(connectionTimeout);
-                    setError(null);
                     const complaintsData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
                     setComplaints(complaintsData);
                     setIsLoading(false);
-                }, (error) => {
-                    clearTimeout(connectionTimeout);
-                    console.error("Error fetching complaints:", error);
-                    setError("Could not connect to the database. Please check your internet connection and refresh the page.");
-                    setIsLoading(false);
                 });
 
-                return () => {
-                    unsubscribe();
-                    clearTimeout(connectionTimeout);
-                };
-            }, [db, userId]);
+                return () => unsubscribe();
+            }, [db]);
 
             const dashboardStats = useMemo(() => {
                 const total = complaints.length;
@@ -364,7 +363,7 @@
                     alert("All closed complaints have been archived.");
                 }
             };
-
+            
             const handleEditComplaint = (complaint) => {
                 setFormData({
                     ...initialFormState,
@@ -389,16 +388,116 @@
                                 `*Assigned To:* ${complaint.assignedTo || 'N/A'}\n` +
                                 `*Department:* ${complaint.department || 'N/A'}\n` +
                                 `*Open Date:* ${new Date(complaint.openDate).toLocaleDateString()}\n\n` +
-                                `_Please review and resolve complaint on Priority._`;
+                                `_Please review the complaint._`;
                 setWhatsAppInfo({ isOpen: true, message: message, link: groupInviteLink });
             };
             
-            if (isLoading) {
-                return <div className="flex items-center justify-center h-screen bg-gray-100"><div className="text-xl font-semibold">Connecting to Database...</div></div>;
-            }
+            const handleExportToExcel = () => {
+                if (filteredAndSortedComplaints.length === 0) return;
+                const headers = ['Complaint ID', 'Description', 'Tower', 'Floor', 'Particular Location', 'Priority', 'Status', 'Open Date', 'Close Date', 'Complaint Given by', 'Assigned To', 'Department', 'Comments', 'Created At'];
+                
+                const formatDateForCSV = (dateString) => {
+                    if (!dateString) return '';
+                    try {
+                        const date = new Date(dateString);
+                        const year = date.getFullYear();
+                        const month = String(date.getMonth() + 1).padStart(2, '0');
+                        const day = String(date.getDate()).padStart(2, '0');
+                        return `${year}-${month}-${day}`;
+                    } catch (e) {
+                        return dateString;
+                    }
+                };
 
-            if (error) {
-                return <div className="flex items-center justify-center h-screen bg-red-100 text-red-800 p-4"><div className="text-xl font-semibold text-center">{error}</div></div>;
+                const escapeCsvField = (field) => {
+                    const strField = String(field ?? '');
+                    if (strField.includes(',') || strField.includes('"') || strField.includes('\n')) {
+                        return `"${strField.replace(/"/g, '""')}"`;
+                    }
+                    return strField;
+                };
+                const csvRows = [
+                    headers.join(','),
+                    ...filteredAndSortedComplaints.map(c => [
+                        escapeCsvField(c.id), escapeCsvField(c.description), escapeCsvField(c.tower), escapeCsvField(c.floor), escapeCsvField(c.location),
+                        escapeCsvField(c.priority), escapeCsvField(c.status), 
+                        escapeCsvField(formatDateForCSV(c.openDate)),
+                        escapeCsvField(formatDateForCSV(c.closeDate)),
+                        escapeCsvField(c.complaintGivenBy), escapeCsvField(c.assignedTo), escapeCsvField(c.department), 
+                        escapeCsvField(c.comments), 
+                        escapeCsvField(c.createdAt ? new Date(c.createdAt).toISOString() : '')
+                    ].join(','))
+                ];
+                const csvContent = csvRows.join('\n');
+                const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+                const link = document.createElement('a');
+                const url = URL.createObjectURL(blob);
+                link.setAttribute('href', url);
+                link.setAttribute('download', 'complaints_export.csv');
+                link.style.visibility = 'hidden';
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+            };
+
+            const handleImportClick = () => {
+                fileInputRef.current.click();
+            };
+
+            const handleFileChange = (event) => {
+                const file = event.target.files[0];
+                if (!file) return;
+
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    const text = e.target.result;
+                    const rows = text.split('\n').slice(1);
+                    const existingIds = new Set(complaints.map(c => c.id));
+                    const newComplaints = [];
+
+                    const headers = ['id', 'description', 'tower', 'floor', 'location', 'priority', 'status', 'openDate', 'closeDate', 'complaintGivenBy', 'assignedTo', 'department', 'comments', 'createdAt'];
+
+                    rows.forEach(row => {
+                        if (row.trim() === '') return;
+                        const values = row.match(/(".*?"|[^",]+)(?=\s*,|\s*$)/g) || [];
+                        const complaintObj = headers.reduce((obj, header, index) => {
+                            let value = values[index] ? values[index].replace(/"/g, '') : '';
+                            if ((header === 'openDate' || header === 'closeDate' || header === 'createdAt') && value) {
+                                let d;
+                                if (value.includes('/')) {
+                                    const parts = value.split('/');
+                                    d = new Date(parts[2], parts[1] - 1, parts[0]);
+                                } else {
+                                    d = new Date(value);
+                                }
+                                if (!isNaN(d)) {
+                                    value = d.toISOString();
+                                } else {
+                                    value = '';
+                                }
+                            }
+                            obj[header] = value;
+                            return obj;
+                        }, {});
+
+                        if (complaintObj.id && !existingIds.has(complaintObj.id)) {
+                            newComplaints.push({ ...initialFormState, ...complaintObj });
+                        }
+                    });
+
+                    if (newComplaints.length > 0) {
+                        setComplaints(prev => [...prev, ...newComplaints]);
+                        alert(`${newComplaints.length} new complaints imported successfully!`);
+                    } else {
+                        alert("No new complaints found to import.");
+                    }
+                };
+                reader.readAsText(file);
+                event.target.value = null;
+            };
+
+            if (isLoading) {
+                return <div className="flex items-center justify-center h-screen bg-gray-100"><div className="text-xl font-semibold">Loading Data...</div></div>;
             }
 
             return (
@@ -407,32 +506,28 @@
                         <header className="mb-6 flex justify-between items-center">
                             <div>
                                 <h1 className="text-3xl font-bold text-gray-800">Complaint Management Tool</h1>
-                                <p className="text-gray-500">Aapke issues ko manage karne ka aasan tarika.</p>
+                                <p className="text-gray-500">Logged in as: {user.email}</p>
                             </div>
-                            <div className="flex items-center gap-2">
-                                <button onClick={() => setView('admin')} className={`p-2 rounded-lg flex items-center gap-2 ${view === 'admin' ? 'bg-blue-600 text-white shadow' : 'bg-gray-200'}`}>
-                                    <User size={18} /> Admin View
-                                </button>
-                                <button onClick={() => setView('team')} className={`p-2 rounded-lg flex items-center gap-2 ${view === 'team' ? 'bg-blue-600 text-white shadow' : 'bg-gray-200'}`}>
-                                    <Users size={18} /> Team View
-                                </button>
-                            </div>
+                            <button onClick={() => signOut(auth)} className="p-2 rounded-lg flex items-center gap-2 bg-red-500 text-white shadow hover:bg-red-600">
+                                <LogOut size={18} /> Sign Out
+                            </button>
                         </header>
 
                         <DashboardStats stats={dashboardStats} />
                         
-                        {view === 'admin' && <ComplaintForm formData={formData} setFormData={setFormData} onSave={handleSaveComplaint} listData={listData} />}
+                        {isAdmin && <ComplaintForm formData={formData} setFormData={setFormData} onSave={handleSaveComplaint} listData={listData} />}
 
                         <div className="bg-white p-4 rounded-lg shadow-sm mb-6 flex flex-wrap items-center gap-4 justify-between">
                              <div className="flex flex-wrap items-center gap-4">
-                                {view === 'admin' && (
+                                {isAdmin && (
                                     <React.Fragment>
-                                        <button onClick={() => {}} className="flex items-center gap-2 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors shadow">
+                                        <button onClick={handleExportToExcel} className="flex items-center gap-2 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors shadow">
                                             <Download size={18} /><span>Export to Excel</span>
                                         </button>
-                                        <button onClick={() => {}} className="flex items-center gap-2 bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 transition-colors shadow">
+                                        <button onClick={handleImportClick} className="flex items-center gap-2 bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 transition-colors shadow">
                                             <Upload size={18} /><span>Import from Excel</span>
                                         </button>
+                                        <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" accept=".csv" />
                                         {dashboardStats.closed > 0 && (
                                             <button onClick={handleArchiveClosed} className="flex items-center gap-2 bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition-colors shadow">
                                                 <Archive size={18} /><span>Archive Closed</span>
@@ -482,7 +577,7 @@
                                             <td className="p-4 text-sm text-gray-800 max-w-xs truncate">{c.description}</td>
                                             <td className="p-4 text-sm text-gray-600">{[c.tower, c.floor, c.location].filter(Boolean).join(', ')}</td>
                                             <td className="p-4 text-sm">
-                                                {view === 'team' ? (
+                                                {!isAdmin ? (
                                                     <select value={c.status} onChange={(e) => handleStatusChange(c.id, e.target.value)} className="p-1 border rounded-lg bg-gray-50">
                                                         {listData.statuses.map(s => <option key={s} value={s}>{s}</option>)}
                                                     </select>
@@ -498,7 +593,7 @@
                                             <td className="p-4">
                                                 <div className="flex items-center gap-2">
                                                     <button onClick={() => handleWhatsAppGroup(c)} className="p-2 text-green-600 hover:bg-green-100 rounded-full" title="Send to WhatsApp Group"><MessageSquare size={18} /></button>
-                                                    {view === 'admin' && (
+                                                    {isAdmin && (
                                                         <React.Fragment>
                                                             <button onClick={() => handleEditComplaint(c)} className="p-2 text-blue-600 hover:bg-blue-100 rounded-full" title="Edit Complaint"><Edit size={18} /></button>
                                                             <button onClick={() => handleDeleteComplaint(c.id)} className="p-2 text-red-600 hover:bg-red-100 rounded-full" title="Delete Complaint"><Trash2 size={18} /></button>
@@ -510,7 +605,7 @@
                                     ))}
                                 </tbody>
                             </table>
-                             {filteredAndSortedComplaints.length === '0' && (
+                             {filteredAndSortedComplaints.length === 0 && (
                                 <div className="text-center p-8 text-gray-500">Koi complaint nahi mili.</div>
                             )}
                         </div>
@@ -523,6 +618,32 @@
                     />}
                 </div>
             );
+        }
+        
+        // --- Main App Controller ---
+        function App() {
+            const [user, setUser] = useState(null);
+            const [auth, setAuth] = useState(null);
+            const [isLoading, setIsLoading] = useState(true);
+
+            useEffect(() => {
+                const app = initializeApp(firebaseConfig);
+                const authInstance = getAuth(app);
+                setAuth(authInstance);
+
+                const unsubscribe = onAuthStateChanged(authInstance, (user) => {
+                    setUser(user);
+                    setIsLoading(false);
+                });
+
+                return () => unsubscribe();
+            }, []);
+
+            if (isLoading) {
+                return <div className="flex items-center justify-center h-screen bg-gray-100"><div className="text-xl font-semibold">Loading App...</div></div>;
+            }
+
+            return user ? <ComplaintTool user={user} auth={auth} /> : <LoginScreen auth={auth} />;
         }
 
         function WhatsAppMessageModal({ message, groupLink, onClose }) {
