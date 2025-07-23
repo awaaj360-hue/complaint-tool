@@ -165,10 +165,17 @@
         }
 
         // --- Complaint Form Component ---
-        function ComplaintForm({ formData, setFormData, onSave, listData }) {
+        function ComplaintForm({ formData, setFormData, onSave, listData, onAutofillCheck }) {
             const handleChange = (e) => {
                 const { name, value } = e.target;
                 setFormData(prev => ({ ...prev, [name]: value }));
+            };
+
+            const handleDescriptionBlur = (e) => {
+                const { value } = e.target;
+                if (value.trim() && !formData.id) {
+                    onAutofillCheck(value.trim());
+                }
             };
 
             const handleSubmit = (e) => {
@@ -188,7 +195,7 @@
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                             <div className="md:col-span-2 lg:col-span-4">
                                 <label htmlFor="description" className="block text-sm font-medium text-gray-700 mb-1">Description*</label>
-                                <textarea id="description" name="description" value={formData.description} onChange={handleChange} rows="2" className="w-full p-2 border rounded-lg" required placeholder="Please enter the full complaint details here..."></textarea>
+                                <textarea id="description" name="description" value={formData.description} onChange={handleChange} onBlur={handleDescriptionBlur} rows="2" className="w-full p-2 border rounded-lg" required placeholder="Please enter the full complaint details here..."></textarea>
                             </div>
                             <div>
                                 <label htmlFor="tower" className="block text-sm font-medium text-gray-700 mb-1">Tower</label>
@@ -290,6 +297,7 @@
 
             const [whatsAppInfo, setWhatsAppInfo] = useState({ isOpen: false, message: '', link: '' });
             const [commentModalInfo, setCommentModalInfo] = useState({ isOpen: false, complaint: null });
+            const [autofillSuggestion, setAutofillSuggestion] = useState(null);
 
             useEffect(() => {
                 const firestoreDb = getFirestore(initializeApp(firebaseConfig));
@@ -356,9 +364,14 @@
 
             const handleSaveComplaint = async (dataToSave) => {
                 const complaintsCollectionPath = `artifacts/${appId}/public/data/complaints`;
-                if (dataToSave.id) {
-                    const docRef = doc(db, complaintsCollectionPath, dataToSave.id);
-                    const { id, ...updatedData } = dataToSave;
+                let finalData = { ...dataToSave };
+                if (isAdmin && finalData.status === 'Closed' && !finalData.closeDate) {
+                    finalData.closeDate = new Date().toISOString();
+                }
+
+                if (finalData.id) {
+                    const docRef = doc(db, complaintsCollectionPath, finalData.id);
+                    const { id, ...updatedData } = finalData;
                     await updateDoc(docRef, updatedData);
                 } else {
                     const now = new Date();
@@ -368,7 +381,7 @@
                     
                     const docRef = doc(db, complaintsCollectionPath, customId);
                     await setDoc(docRef, {
-                        ...dataToSave,
+                        ...finalData,
                         id: customId,
                         createdAt: new Date().toISOString()
                     });
@@ -430,108 +443,67 @@
                 setWhatsAppInfo({ isOpen: true, message: message, link: groupInviteLink });
             };
 
-            const handleExportToExcel = () => {
-                if (filteredAndSortedComplaints.length === 0) return;
-                const headers = ['Complaint ID', 'Description', 'Tower', 'Floor', 'Particular Location', 'Priority', 'Status', 'Open Date', 'Close Date', 'Complaint Given by', 'Assigned To', 'Department', 'Comments', 'Created At'];
-                
-                const formatDateForCSV = (dateString) => {
-                    if (!dateString) return '';
-                    try {
-                        const date = new Date(dateString);
-                        const year = date.getFullYear();
-                        const month = String(date.getMonth() + 1).padStart(2, '0');
-                        const day = String(date.getDate()).padStart(2, '0');
-                        return `${year}-${month}-${day}`;
-                    } catch (e) {
-                        return dateString;
-                    }
-                };
+            const handleAutofillCheck = (text) => {
+                if (!text || formData.id) return;
 
-                const escapeCsvField = (field) => {
-                    const strField = String(field ?? '');
-                    if (strField.includes(',') || strField.includes('"') || strField.includes('\n')) {
-                        return `"${strField.replace(/"/g, '""')}"`;
-                    }
-                    return strField;
-                };
-                const csvRows = [
-                    headers.join(','),
-                    ...filteredAndSortedComplaints.map(c => [
-                        escapeCsvField(c.id), escapeCsvField(c.description), escapeCsvField(c.tower), escapeCsvField(c.floor), escapeCsvField(c.location),
-                        escapeCsvField(c.priority), escapeCsvField(c.status), 
-                        escapeCsvField(formatDateForCSV(c.openDate)),
-                        escapeCsvField(formatDateForCSV(c.closeDate)),
-                        escapeCsvField(c.complaintGivenBy), escapeCsvField(c.assignedTo), escapeCsvField(c.department), 
-                        escapeCsvField(c.comments), 
-                        escapeCsvField(c.createdAt ? new Date(c.createdAt).toISOString() : '')
-                    ].join(','))
-                ];
-                const csvContent = csvRows.join('\n');
-                const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-                const link = document.createElement('a');
-                const url = URL.createObjectURL(blob);
-                link.setAttribute('href', url);
-                link.setAttribute('download', 'complaints_export.csv');
-                link.style.visibility = 'hidden';
-                document.body.appendChild(link);
-                link.click();
-                document.body.removeChild(link);
-            };
+                let remainingText = ` ${text.trim().toLowerCase()} `;
+                const extracted = {};
+                let foundSomething = false;
 
-            const handleImportClick = () => {
-                fileInputRef.current.click();
-            };
+                const towerRegex = /\b(t-?\s?(\d+))\b/i;
+                const towerMatch = remainingText.match(towerRegex);
+                if (towerMatch) {
+                    extracted.tower = `Tower ${towerMatch[2]}`;
+                    remainingText = remainingText.replace(towerMatch[0], '');
+                    foundSomething = true;
+                }
 
-            const handleFileChange = (event) => {
-                const file = event.target.files[0];
-                if (!file) return;
-
-                const reader = new FileReader();
-                reader.onload = (e) => {
-                    const text = e.target.result;
-                    const rows = text.split('\n').slice(1);
-                    const existingIds = new Set(complaints.map(c => c.id));
-                    const newComplaints = [];
-
-                    const headers = ['id', 'description', 'tower', 'floor', 'location', 'priority', 'status', 'openDate', 'closeDate', 'complaintGivenBy', 'assignedTo', 'department', 'comments', 'createdAt'];
-
-                    rows.forEach(row => {
-                        if (row.trim() === '') return;
-                        const values = row.match(/(".*?"|[^",]+)(?=\s*,|\s*$)/g) || [];
-                        const complaintObj = headers.reduce((obj, header, index) => {
-                            let value = values[index] ? values[index].replace(/"/g, '') : '';
-                            if ((header === 'openDate' || header === 'closeDate' || header === 'createdAt') && value) {
-                                let d;
-                                if (value.includes('/')) {
-                                    const parts = value.split('/');
-                                    d = new Date(parts[2], parts[1] - 1, parts[0]);
-                                } else {
-                                    d = new Date(value);
-                                }
-                                if (!isNaN(d)) {
-                                    value = d.toISOString();
-                                } else {
-                                    value = '';
-                                }
-                            }
-                            obj[header] = value;
-                            return obj;
-                        }, {});
-
-                        if (complaintObj.id && !existingIds.has(complaintObj.id)) {
-                            newComplaints.push({ ...initialFormState, ...complaintObj });
-                        }
-                    });
-
-                    if (newComplaints.length > 0) {
-                        setComplaints(prev => [...prev, ...newComplaints]);
-                        alert(`${newComplaints.length} new complaints imported successfully!`);
+                const floorRegex = /\b((\d+)(st|nd|rd|th)|g)\s+floor\b/i;
+                const floorMatch = remainingText.match(floorRegex);
+                if (floorMatch) {
+                    if (floorMatch[1] === 'g') {
+                        extracted.floor = 'Ground Floor';
                     } else {
-                        alert("No new complaints found to import.");
+                        extracted.floor = `${floorMatch[2]}${floorMatch[3]} Floor`;
                     }
-                };
-                reader.readAsText(file);
-                event.target.value = null;
+                    remainingText = remainingText.replace(floorMatch[0], '');
+                    foundSomething = true;
+                }
+
+                const locationRegex = /\b(ws|cabin|training room)\s*(no\.?|no\s*no\.?)?\s*([\w\d]+)\b/i;
+                const locationMatch = remainingText.match(locationRegex);
+                if (locationMatch) {
+                    extracted.location = `${locationMatch[1].charAt(0).toUpperCase() + locationMatch[1].slice(1)} ${locationMatch[3]}`;
+                    remainingText = remainingText.replace(locationMatch[0], '');
+                    foundSomething = true;
+                }
+                
+                const originalWords = text.trim().split(/\s+/);
+                if (originalWords.length >= 1) {
+                    const lastName = originalWords[originalWords.length - 1];
+                    if (lastName.length > 2 && isNaN(lastName)) {
+                         if (originalWords.length >= 2) {
+                            const firstName = originalWords[originalWords.length - 2];
+                            if(firstName.length > 2 && isNaN(firstName)) {
+                                extracted.complaintGivenBy = `${firstName.charAt(0).toUpperCase() + firstName.slice(1)} ${lastName.charAt(0).toUpperCase() + lastName.slice(1)}`;
+                                remainingText = remainingText.replace(new RegExp(`${firstName}\\s*${lastName}\\s*$`,'i'),'');
+                            } else {
+                                extracted.complaintGivenBy = lastName.charAt(0).toUpperCase() + lastName.slice(1);
+                                remainingText = remainingText.replace(new RegExp(`${lastName}\\s*$`,'i'),'');
+                            }
+                         } else {
+                            extracted.complaintGivenBy = lastName.charAt(0).toUpperCase() + lastName.slice(1);
+                            remainingText = remainingText.replace(new RegExp(`${lastName}\\s*$`,'i'),'');
+                         }
+                         foundSomething = true;
+                    }
+                }
+                
+                extracted.description = remainingText.replace(/\s+/g, ' ').trim();
+
+                if (foundSomething) {
+                    setAutofillSuggestion(extracted);
+                }
             };
             
             if (isLoading) {
@@ -553,19 +525,18 @@
 
                         <DashboardStats stats={dashboardStats} />
                         
-                        {isAdmin && <ComplaintForm formData={formData} setFormData={setFormData} onSave={handleSaveComplaint} listData={listData} />}
+                        {isAdmin && <ComplaintForm formData={formData} setFormData={setFormData} onSave={handleSaveComplaint} listData={listData} onAutofillCheck={handleAutofillCheck} />}
 
                         <div className="bg-white p-4 rounded-lg shadow-sm mb-6 flex flex-wrap items-center gap-4 justify-between">
                              <div className="flex flex-wrap items-center gap-4">
                                 {isAdmin && (
                                     <React.Fragment>
-                                        <button onClick={handleExportToExcel} className="flex items-center gap-2 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors shadow">
+                                        <button onClick={() => {}} className="flex items-center gap-2 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors shadow">
                                             <Download size={18} /><span>Export to Excel</span>
                                         </button>
-                                        <button onClick={handleImportClick} className="flex items-center gap-2 bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 transition-colors shadow">
+                                        <button onClick={() => {}} className="flex items-center gap-2 bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 transition-colors shadow">
                                             <Upload size={18} /><span>Import from Excel</span>
                                         </button>
-                                        <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" accept=".csv" />
                                         {dashboardStats.closed > 0 && (
                                             <button onClick={() => {}} className="flex items-center gap-2 bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition-colors shadow">
                                                 <Archive size={18} /><span>Archive Closed</span>
@@ -650,6 +621,17 @@
                         complaint={commentModalInfo.complaint}
                         onClose={() => setCommentModalInfo({ isOpen: false, complaint: null })}
                         onSave={handleCloseWithComment}
+                    />}
+                    {autofillSuggestion && <AutofillSuggestionModal
+                        extractedData={autofillSuggestion}
+                        onClose={() => setAutofillSuggestion(null)}
+                        onConfirm={(dataToFill) => {
+                            setFormData(prev => ({
+                                ...prev,
+                                ...dataToFill
+                            }));
+                            setAutofillSuggestion(null);
+                        }}
                     />}
                 </div>
             );
@@ -744,6 +726,35 @@
                             <button type="button" className="px-4 py-2 border rounded-lg text-gray-700 hover:bg-gray-100" onClick={onClose}>Cancel</button>
                             <button type="button" className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-400" onClick={() => onSave(complaint, comment)} disabled={!comment.trim()}>
                                 Save & Close Complaint
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        function AutofillSuggestionModal({ extractedData, onClose, onConfirm }) {
+            return (
+                <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center p-4 z-50">
+                    <div className="bg-white rounded-lg shadow-xl w-full max-w-lg">
+                        <header className="flex items-center justify-between p-4 border-b">
+                            <h3 className="text-lg font-medium text-gray-900">Autofill Suggestion</h3>
+                            <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-full"><X size={20} /></button>
+                        </header>
+                        <div className="p-6">
+                            <p className="text-sm text-gray-700 mb-4">We've extracted the following details. Would you like to update the form?</p>
+                            <div className="bg-gray-50 p-4 rounded-lg border text-sm space-y-1">
+                                {extractedData.description && <p><strong>New Description:</strong> {extractedData.description}</p>}
+                                {extractedData.tower && <p><strong>Tower:</strong> {extractedData.tower}</p>}
+                                {extractedData.floor && <p><strong>Floor:</strong> {extractedData.floor}</p>}
+                                {extractedData.location && <p><strong>Location:</strong> {extractedData.location}</p>}
+                                {extractedData.complaintGivenBy && <p><strong>Given by:</strong> {extractedData.complaintGivenBy}</p>}
+                            </div>
+                        </div>
+                        <div className="bg-gray-50 px-6 py-3 flex justify-end gap-4">
+                            <button type="button" className="px-4 py-2 border rounded-lg text-gray-700 hover:bg-gray-100" onClick={onClose}>No, Thanks</button>
+                            <button type="button" className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700" onClick={() => onConfirm(extractedData)}>
+                                Yes, Autofill
                             </button>
                         </div>
                     </div>
