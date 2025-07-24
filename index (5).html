@@ -1,0 +1,540 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#4f46e5">
+    <title>Multi-Purpose Logger with Tracker</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f0f2f5;
+        }
+        .toast {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: #25D366;
+            color: white;
+            padding: 10px 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            opacity: 0;
+            transition: opacity 0.3s ease, transform 0.3s ease;
+            z-index: 1000;
+        }
+        .toast.show {
+            opacity: 1;
+            transform: translateX(-50%) translateY(0);
+        }
+        .form-group label {
+            margin-bottom: 0.25rem;
+        }
+        .tab-text-active {
+            color: #4f46e5; /* indigo-600 */
+            font-weight: 600;
+        }
+        select {
+            -webkit-appearance: none;
+            -moz-appearance: none;
+            appearance: none;
+            background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
+            background-repeat: no-repeat;
+            background-position: right 0.7rem center;
+            background-size: 1em;
+            padding-right: 2.5rem;
+        }
+        .tracker-item-closed {
+            opacity: 0.6;
+            text-decoration: line-through;
+        }
+    </style>
+</head>
+<body class="flex items-center justify-center min-h-screen p-2 sm:p-4">
+
+<div class="container mx-auto max-w-4xl">
+    <div class="bg-white p-4 sm:p-6 rounded-2xl shadow-lg">
+        <div class="text-center mb-4">
+            <h1 class="text-2xl sm:text-3xl font-bold text-gray-800">📋 Multi-Purpose Logger</h1>
+            <p class="text-gray-500 mt-1 text-sm sm:text-base">Log, track, and follow-up on tasks.</p>
+        </div>
+
+        <div class="relative flex border-b border-gray-200 mb-4">
+            <button id="complaintTab" class="px-3 py-2 text-sm sm:text-base text-gray-600 transition-colors duration-300 z-10">Complaint Logger</button>
+            <button id="assignmentTab" class="px-3 py-2 text-sm sm:text-base text-gray-600 transition-colors duration-300 z-10">Work Assignment</button>
+            <button id="trackerTab" class="px-3 py-2 text-sm sm:text-base text-gray-600 transition-colors duration-300 z-10">Tracker</button>
+            <div id="tabSlider" class="absolute bottom-[-1px] h-0.5 bg-indigo-600 transition-all duration-300 ease-in-out"></div>
+        </div>
+
+        <div id="complaintFormContainer">
+            <form id="complaintForm" class="space-y-4">
+                <fieldset class="border border-gray-200 rounded-lg p-4"><legend class="text-base font-bold text-purple-600 px-2">👤 Complainer Info</legend><div class="grid grid-cols-1 md:grid-cols-2 gap-4"><div class="form-group"><label for="complainer" class="block text-sm font-medium text-gray-700">Complainer's Name</label><input type="text" id="complainer" required placeholder="Enter name..." class="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500"></div><div class="form-group"><label for="complaintId" class="block text-sm font-medium text-gray-700">Complaint ID</label><input type="text" id="complaintId" readonly class="w-full p-2 border border-gray-200 rounded-lg bg-gray-100 text-gray-500 font-mono"></div></div></fieldset>
+                <fieldset class="border border-gray-200 rounded-lg p-4"><legend class="text-base font-bold text-blue-600 px-2">📍 Location Details</legend><div class="grid grid-cols-1 md:grid-cols-3 gap-4"><div class="form-group"><label for="tower" class="block text-sm font-medium text-gray-700">Tower</label><input type="text" id="tower" required placeholder="e.g., 1 or Terrace" class="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"></div><div class="form-group"><label for="floor" class="block text-sm font-medium text-gray-700">Floor</label><input type="text" id="floor" required placeholder="e.g., 4" class="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"></div><div class="form-group"><label for="flatNumber" class="block text-sm font-medium text-gray-700">Flat/Office No.</label><input type="text" id="flatNumber" required placeholder="e.g., WZ-169" class="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"></div></div></fieldset>
+                <fieldset class="border border-gray-200 rounded-lg p-4"><legend class="text-base font-bold text-red-600 px-2">🔧 Problem Details</legend><div class="form-group"><label for="problem" class="block text-sm font-medium text-gray-700">What is the Problem?</label><textarea id="problem" rows="2" required placeholder="e.g., AC not working..." class="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500"></textarea></div></fieldset>
+            </form>
+        </div>
+
+        <div id="assignmentFormContainer" class="hidden">
+            <form id="assignmentForm" class="space-y-4">
+                 <fieldset class="border border-gray-200 rounded-lg p-4"><legend class="text-base font-bold text-green-600 px-2">📝 Assignment Details</legend><div class="form-group mb-4"><label for="assignmentTitle" class="block text-sm font-medium text-gray-700">Title</label><input type="text" id="assignmentTitle" required value="Executive Hall Booking" class="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"></div><div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4"><div class="form-group"><label for="startDate" class="block text-sm font-medium text-gray-700">Start Date</label><input type="date" id="startDate" required class="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"></div><div class="form-group"><label for="endDate" class="block text-sm font-medium text-gray-700">End Date</label><input type="date" id="endDate" required class="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"></div><div class="form-group"><label for="startTime" class="block text-sm font-medium text-gray-700">Start Time</label><select id="startTime" required class="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"></select></div><div class="form-group"><label for="endTime" class="block text-sm font-medium text-gray-700">End Time</label><select id="endTime" required class="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"></select></div></div><div class="grid grid-cols-1 md:grid-cols-2 gap-4"><div class="form-group"><label for="assignedTo" class="block text-sm font-medium text-gray-700">Assigned To</label><select id="assignedTo" required class="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"><option>Engineering Team</option><option value="Other">Other...</option></select></div><div class="form-group"><label for="otherAssignedTo" class="block text-sm font-medium text-gray-700 hidden">Other Name</label><input type="text" id="otherAssignedTo" placeholder="Enter custom name..." class="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 hidden"></div><div class="form-group md:col-span-2"><label for="department" class="block text-sm font-medium text-gray-700">Department</label><input type="text" id="department" required value="HR" class="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"></div></div></fieldset>
+                <fieldset class="border border-gray-200 rounded-lg p-4"><legend class="text-base font-bold text-yellow-600 px-2">📋 Setup / More Details</legend><div class="form-group"><label for="setupDetails" class="block text-sm font-medium text-gray-700">Details</label><textarea id="setupDetails" rows="2" required placeholder="e.g., 50, Cluster Style" class="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500">50, Cluster Style</textarea></div></fieldset>
+            </form>
+        </div>
+
+        <div id="trackerContainer" class="hidden">
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div>
+                    <h2 class="text-lg font-bold text-red-600 mb-2">Open Complaints</h2>
+                    <div id="complaintTrackerList" class="space-y-3 max-h-96 overflow-y-auto pr-2"></div>
+                </div>
+                <div>
+                    <h2 class="text-lg font-bold text-green-600 mb-2">Open Assignments</h2>
+                    <div id="assignmentTrackerList" class="space-y-3 max-h-96 overflow-y-auto pr-2"></div>
+                </div>
+            </div>
+        </div>
+        
+        <div id="actionsContainer" class="flex flex-col sm:flex-row items-center justify-center gap-4 mt-6">
+            <button type="button" id="sendBtn" class="w-full sm:w-auto flex items-center justify-center gap-2 text-white bg-green-500 hover:bg-green-600 focus:ring-4 focus:ring-green-300 font-bold rounded-lg text-base px-6 py-3 transition-transform transform hover:scale-105">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" class="bi bi-whatsapp" viewBox="0 0 16 16"><path d="M13.601 2.326A7.85 7.85 0 0 0 7.994 0C3.627 0 .068 3.558.064 7.926c0 1.399.366 2.76 1.057 3.965L0 16l4.204-1.102a7.9 7.9 0 0 0 3.79.965h.004c4.368 0 7.926-3.558 7.93-7.93A7.9 7.9 0 0 0 13.6 2.326zM7.994 14.521a6.6 6.6 0 0 1-3.356-.92l-.24-.144-2.494.654.666-2.433-.156-.251a6.56 6.56 0 0 1-1.007-3.505c0-3.626 2.957-6.584 6.591-6.584a6.56 6.56 0 0 1 4.66 1.931 6.56 6.56 0 0 1 1.928 4.66c-.004 3.639-2.961 6.592-6.592 6.592m3.615-4.934c-.197-.099-1.17-.578-1.353-.646-.182-.065-.315-.099-.445.099-.133.197-.513.646-.627.775-.114.133-.232.148-.43.05-.197-.1-.836-.308-1.592-.985-.59-.525-.985-1.175-1.103-1.372-.114-.198-.011-.304.088-.403.087-.088.197-.232.296-.346.1-.114.133-.198.198-.33.065-.134.034-.248-.015-.347-.05-.099-.445-1.076-.612-1.47-.16-.389-.323-.335-.445-.34-.114-.007-.247-.007-.38-.007a.73.73 0 0 0-.529.247c-.182.198-.691.677-.691 1.654s.71 1.916.81 2.049c.098.133 1.394 2.132 3.383 2.992.47.205.84.326 1.129.418.475.152.904.129 1.246.08.38-.058 1.171-.48 1.338-.943.164-.464.164-.86.114-.943s-.182-.133-.38-.232z"/></svg>
+                Send to WhatsApp
+            </button>
+            <button type="button" id="copyBtn" class="w-full sm:w-auto text-white bg-gray-500 hover:bg-gray-600 focus:ring-4 focus:ring-gray-300 font-bold rounded-lg text-base px-6 py-3 transition">
+                Copy Message
+            </button>
+        </div>
+
+        <div id="previewContainer" class="mt-6">
+            <h3 class="text-base font-semibold text-gray-800 mb-2">Generated Message Preview:</h3>
+            <textarea id="messagePreview" readonly class="w-full h-48 p-2 border border-gray-300 rounded-lg bg-gray-50 font-mono text-sm whitespace-pre-wrap"></textarea>
+        </div>
+    </div>
+</div>
+
+<div id="toast" class="toast"></div>
+
+<script>
+// PWA Service Worker and Manifest Registration
+(function() {
+    // 1. Create Manifest with PNG icons for better compatibility
+    const manifest = {
+        "name": "Multi-Purpose Logger",
+        "short_name": "Logger",
+        "start_url": ".",
+        "display": "standalone",
+        "background_color": "#f0f2f5",
+        "theme_color": "#4f46e5",
+        "description": "A simple tool to log, track, and manage complaints and work assignments.",
+        "icons": [
+            {
+                "src": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAMAAAADACAYAAABS3GwHAAAABGdBTUEAALGPC/xhBQAAAAFzUkdCAK7OHOkAAAAgY0hSTQAAeiYAAICEAAD6AAAAgOgAAHUwAADqYAAAOpgAABdwnLpRPAAAAAZiS0dEAP+AAAAA/wD4TOyZAAABv0lEQVR42u3TQQ0AAAjEMpr91+4KFAw4BYe2AQIECBAgQIAAAQIECBAgQIAAAQIECBAgQIAAAQIECBAgQIAAAQIECBAgQIAAAQIECBAgQIAAAQIECBAgQIAAAQIECBAgQIAAAQIECBAgQIAAAQIECBAgQIAAAQIECBAgQIAAAQIECBAgQIAAAQIECBAgQIAAAQIECBAgQIAAAQIECBAgQIAAAQIECBAgQIAAAQIECBAgQIAAAQIECBAgQIAAAQIECBAgQIAAAQIECBAgQIAAAQIECBAgQIAAAQIECBAgQIAAAQIECBAgQIAAAQIECBAgQIAAAQIECBAgQIAAAQIECBAgQIAAAQIECBAgQIAAAQIECBAgQIAAAQIECBAgQIAAAQIECBAgQIAAAQIECBAgQIAAAQIECBAgQIAAAQIECBAgQIAAAQIECBAgQIAAAQIECBAgQIAAAQIECBAgQIAAAQIECBAgQIAAAQIECBAgQIAAAQIECBAgQIAAAQIECBAgQIAAAQIECBAgQIAAAQIECBAgQIAAAQIECBAgQIAAAQIECBAgQIAAAQIECBAgQIAAAQIECBAgQIAAAQIECBAgQIAAAQIECBAgQIAAAQIECBAgQIAAAQIECBAgQIAAAQIECBAgQIAAAQIECBAgQIAAAQIECBAgQIAAAQIECBAgQIAAAQIECBAgQIAAAQIECBAgQIAAAQJdAY49AAG+i34GAAAAJXRFWHRkYXRlOmNyZWF0ZQAyMDI0LTA1LTIxVDEwOjQ3OjE5KzAwOjAwv0wFrAAAACV0RVh0ZGF0ZTptb2RpZnkAMjAyNC0wNS0yMVQxMDo0NzoxOSswMDowMHVLlGIAAAAASUVORK5CYII=",
+                "sizes": "192x192",
+                "type": "image/png"
+            },
+            {
+                "src": "data:image/png;base64,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",
+                "sizes": "512x512",
+                "type": "image/png"
+            }
+        ]
+    };
+    const manifestBlob = new Blob([JSON.stringify(manifest)], { type: 'application/json' });
+    const manifestURL = URL.createObjectURL(manifestBlob);
+    const link = document.createElement('link');
+    link.rel = 'manifest';
+    link.href = manifestURL;
+    document.head.appendChild(link);
+
+    // 2. Create and Register Service Worker
+    if ('serviceWorker' in navigator) {
+        const swCode = `
+            const CACHE_NAME = 'multi-purpose-logger-v2';
+            self.addEventListener('install', event => {
+                event.waitUntil(caches.open(CACHE_NAME).then(cache => cache.addAll(['./'])));
+            });
+            self.addEventListener('fetch', event => {
+                event.respondWith(
+                    caches.match(event.request).then(response => response || fetch(event.request))
+                );
+            });
+        `;
+        const swBlob = new Blob([swCode], { type: 'application/javascript' });
+        const swURL = URL.createObjectURL(swBlob);
+        
+        window.addEventListener('load', () => {
+            navigator.serviceWorker.register(swURL)
+                .then(reg => console.log('ServiceWorker registration successful.'))
+                .catch(err => console.log('ServiceWorker registration failed: ', err));
+        });
+    }
+})();
+
+document.addEventListener('DOMContentLoaded', function() {
+    // --- General Elements ---
+    const allTabs = {
+        complaint: document.getElementById('complaintTab'),
+        assignment: document.getElementById('assignmentTab'),
+        tracker: document.getElementById('trackerTab')
+    };
+    const tabSlider = document.getElementById('tabSlider');
+    const allForms = {
+        complaint: document.getElementById('complaintFormContainer'),
+        assignment: document.getElementById('assignmentFormContainer'),
+        tracker: document.getElementById('trackerContainer')
+    };
+    const actionsContainer = document.getElementById('actionsContainer');
+    const previewContainer = document.getElementById('previewContainer');
+    const messagePreview = document.getElementById('messagePreview');
+    const sendBtn = document.getElementById('sendBtn');
+    const copyBtn = document.getElementById('copyBtn');
+    let activeMode = 'complaint';
+
+    // --- State Variables ---
+    let complaintCounter = 1, assignmentCounter = 1;
+    let complainerHistory = {}, complaints = [], assignments = [];
+
+    // --- Complaint Form Elements ---
+    const complaintForm = document.getElementById('complaintForm');
+    const complainerInput = document.getElementById('complainer');
+    const complaintIdInput = document.getElementById('complaintId');
+    const towerInput = document.getElementById('tower');
+    const floorInput = document.getElementById('floor');
+    const flatNumberInput = document.getElementById('flatNumber');
+    const problemInput = document.getElementById('problem');
+
+    // --- Assignment Form Elements ---
+    const assignmentForm = document.getElementById('assignmentForm');
+    const assignmentTitleInput = document.getElementById('assignmentTitle');
+    const startDateInput = document.getElementById('startDate');
+    const endDateInput = document.getElementById('endDate');
+    const startTimeSelect = document.getElementById('startTime');
+    const endTimeSelect = document.getElementById('endTime');
+    const assignedToSelect = document.getElementById('assignedTo');
+    const otherAssignedToInput = document.getElementById('otherAssignedTo');
+    const departmentInput = document.getElementById('department');
+    const setupDetailsInput = document.getElementById('setupDetails');
+    
+    // --- Tracker Elements ---
+    const complaintTrackerList = document.getElementById('complaintTrackerList');
+    const assignmentTrackerList = document.getElementById('assignmentTrackerList');
+
+    // --- Helper Functions ---
+    function showToast(message, isSuccess = true) {
+        const toast = document.getElementById('toast');
+        toast.textContent = message;
+        toast.style.backgroundColor = isSuccess ? '#25D366' : '#ef4444';
+        toast.classList.add('show');
+        setTimeout(() => { toast.classList.remove('show'); }, 2500);
+    }
+
+    function populateTimeSlots(selectElement) {
+        for (let h = 0; h < 24; h++) {
+            for (let m = 0; m < 60; m += 15) {
+                const hour12 = h % 12 === 0 ? 12 : h % 12;
+                const ampm = h < 12 ? 'AM' : 'PM';
+                const timeString = `${String(hour12).padStart(2, '0')}:${String(m).padStart(2, '0')} ${ampm}`;
+                const option = document.createElement('option');
+                option.value = timeString;
+                option.textContent = timeString;
+                selectElement.appendChild(option);
+            }
+        }
+    }
+    
+    function getOrdinalSuffix(i) {
+        const j = i % 10, k = i % 100;
+        if (j == 1 && k != 11) return i + "st Floor";
+        if (j == 2 && k != 12) return i + "nd Floor";
+        if (j == 3 && k != 13) return i + "rd Floor";
+        return i + "th Floor";
+    }
+
+    // --- State Management ---
+    function loadState() {
+        complaintCounter = parseInt(localStorage.getItem('complaintCounter') || '1', 10);
+        assignmentCounter = parseInt(localStorage.getItem('assignmentCounter') || '1', 10);
+        complainerHistory = JSON.parse(localStorage.getItem('complainerHistory') || '{}');
+        complaints = JSON.parse(localStorage.getItem('complaints') || '[]');
+        assignments = JSON.parse(localStorage.getItem('assignments') || '[]');
+        updateComplaintIdDisplay();
+    }
+
+    function saveState() {
+        localStorage.setItem('complaintCounter', complaintCounter);
+        localStorage.setItem('assignmentCounter', assignmentCounter);
+        localStorage.setItem('complainerHistory', JSON.stringify(complainerHistory));
+        localStorage.setItem('complaints', JSON.stringify(complaints));
+        localStorage.setItem('assignments', JSON.stringify(assignments));
+    }
+
+    function updateComplaintIdDisplay() {
+        complaintIdInput.value = 'CB' + String(complaintCounter).padStart(2, '0');
+    }
+
+    // --- Message Generation ---
+    function generateComplaintMessage() {
+        const complainer = complainerInput.value.trim();
+        const tower = towerInput.value.trim();
+        let floor = floorInput.value.trim();
+        const flatNumber = flatNumberInput.value.trim();
+        const problem = problemInput.value.trim();
+
+        if (!complainer || !tower || !floor || !flatNumber || !problem) { messagePreview.value = ""; return null; }
+
+        const priority = ['not working', 'leakage', 'no power', 'stuck', 'broken', 'no water'].some(p => problem.toLowerCase().includes(p)) ? { emoji: '🚨', text: 'High Priority' } : ['too cool', 'less cool', 'noise', 'slow', 'low pressure'].some(p => problem.toLowerCase().includes(p)) ? { emoji: '⚠️', text: 'Medium Priority' } : { emoji: 'ℹ️', text: 'Normal Priority' };
+        const now = new Date();
+        const formattedDate = now.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+        const formattedTime = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
+        const complaintId = 'CB' + String(complaintCounter).padStart(2, '0');
+
+        const message = `*${priority.emoji} ${priority.text.toUpperCase()} COMPLAINT ${priority.emoji}*\n---------------------------------\n*Complaint ID:* ${complaintId}\n*Date:* ${formattedDate}\n*Time:* ${formattedTime}\n---------------------------------\n\n*Location:* ${tower}, ${floor}, ${flatNumber}\n*Complainer:* ${complainer}\n*Problem:* ${problem}`;
+        messagePreview.value = message;
+        return { message, data: { id: complaintId, complainer, tower, floor, flatNumber, problem, date: now.toISOString(), status: 'Open' } };
+    }
+
+    function generateAssignmentMessage() {
+        const title = assignmentTitleInput.value.trim();
+        const startDate = startDateInput.value;
+        const endDate = endDateInput.value;
+        const startTime = startTimeSelect.value;
+        const endTime = endTimeSelect.value;
+        let assignedTo = assignedToSelect.value === 'Other' ? otherAssignedToInput.value.trim() : assignedToSelect.value;
+        const department = departmentInput.value.trim();
+        const setupDetails = setupDetailsInput.value.trim();
+
+        if (!title || !startDate || !endDate || !startTime || !endTime || !assignedTo || !department || !setupDetails) { messagePreview.value = ""; return null; }
+
+        const formatDate = (dateStr) => new Date(dateStr + 'T00:00:00').toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }).replace(/ /g, '-');
+        const assignmentId = 'WA' + String(assignmentCounter).padStart(2, '0');
+
+        const message = `*🗓️ WORK ASSIGNMENT 🗓️*\n---------------------------------\n*Assignment ID:* ${assignmentId}\n*Title:* ${title}\n*Date:* ${formatDate(startDate)} to ${formatDate(endDate)}\n*Time:* ${startTime} to ${endTime}\n---------------------------------\n\n*Assigned To:* ${assignedTo}\n*Department:* ${department}\n*Details/Setup:* ${setupDetails}`;
+        messagePreview.value = message;
+        return { message, data: { id: assignmentId, title, startDate, endDate, startTime, endTime, assignedTo, department, setupDetails, date: new Date().toISOString(), status: 'Open' } };
+    }
+
+    // --- Tracker Functions ---
+    function renderTracker() {
+        complaintTrackerList.innerHTML = '';
+        assignmentTrackerList.innerHTML = '';
+
+        const openComplaints = complaints.filter(c => c.status === 'Open');
+        if (openComplaints.length === 0) complaintTrackerList.innerHTML = '<p class="text-gray-500 text-sm">No open complaints.</p>';
+        openComplaints.forEach(item => complaintTrackerList.appendChild(createTrackerItem(item, 'complaint')));
+
+        const openAssignments = assignments.filter(a => a.status === 'Open');
+        if (openAssignments.length === 0) assignmentTrackerList.innerHTML = '<p class="text-gray-500 text-sm">No open assignments.</p>';
+        openAssignments.forEach(item => assignmentTrackerList.appendChild(createTrackerItem(item, 'assignment')));
+    }
+
+    function createTrackerItem(item, type) {
+        const div = document.createElement('div');
+        div.className = `p-3 border rounded-lg text-sm ${item.status === 'Closed' ? 'tracker-item-closed bg-gray-50' : 'bg-white'}`;
+        
+        const mainInfo = type === 'complaint' 
+            ? `<p class="font-bold text-purple-700">${item.id}: ${item.problem}</p><p class="text-gray-600">${item.complainer} - ${item.tower}, ${item.floor}</p>`
+            : `<p class="font-bold text-green-700">${item.id}: ${item.title}</p><p class="text-gray-600">${item.assignedTo} - ${new Date(item.startDate + 'T00:00:00').toLocaleDateString('en-GB', {day:'2-digit', month:'short'})}</p>`;
+
+        div.innerHTML = `
+            <div class="flex justify-between items-start">
+                <div>${mainInfo}</div>
+                <button data-id="${item.id}" data-type="${type}" class="delete-btn text-red-500 hover:text-red-700 text-lg font-bold">&times;</button>
+            </div>
+            <div class="flex items-center justify-end gap-2 mt-2">
+                <button data-id="${item.id}" data-type="${type}" class="status-btn text-xs px-2 py-1 rounded ${item.status === 'Open' ? 'bg-red-100 text-red-700 hover:bg-red-200' : 'bg-green-100 text-green-700 hover:bg-green-200'}">${item.status === 'Open' ? 'Mark Closed' : 'Re-open'}</button>
+                <button data-id="${item.id}" data-type="${type}" class="followup-btn text-xs px-2 py-1 rounded bg-blue-100 text-blue-700 hover:bg-blue-200">Follow-up</button>
+            </div>
+        `;
+        
+        div.querySelector('.status-btn').addEventListener('click', handleStatusChange);
+        div.querySelector('.followup-btn').addEventListener('click', handleFollowUp);
+        div.querySelector('.delete-btn').addEventListener('click', handleDelete);
+        return div;
+    }
+    
+    function handleStatusChange(e) {
+        const { id, type } = e.target.dataset;
+        const list = type === 'complaint' ? complaints : assignments;
+        const item = list.find(i => i.id === id);
+        if (item) {
+            item.status = item.status === 'Open' ? 'Closed' : 'Open';
+            saveState();
+            renderTracker();
+            showToast(`'${id}' marked as ${item.status}.`);
+        }
+    }
+
+    function handleFollowUp(e) {
+        const { id, type } = e.target.dataset;
+        const list = type === 'complaint' ? complaints : assignments;
+        const item = list.find(i => i.id === id);
+        if (item) {
+            const followUpText = type === 'complaint' 
+                ? `Gentle Reminder: What is the status of Complaint ID ${item.id} (${item.problem})?`
+                : `Gentle Reminder: What is the status of Assignment ID ${item.id} (${item.title})?`;
+            const whatsappURL = `https://wa.me/?text=${encodeURIComponent(followUpText)}`;
+            window.open(whatsappURL, '_blank');
+        }
+    }
+    
+    function handleDelete(e) {
+        const { id, type } = e.target.dataset;
+        if (confirm(`Are you sure you want to delete '${id}' permanently?`)) {
+            if (type === 'complaint') {
+                complaints = complaints.filter(i => i.id !== id);
+            } else {
+                assignments = assignments.filter(i => i.id !== id);
+            }
+            saveState();
+            renderTracker();
+            showToast(`'${id}' has been deleted.`);
+        }
+    }
+
+    // --- Event Listeners ---
+    function switchTab(mode) {
+        activeMode = mode;
+        const activeTabElement = allTabs[mode];
+
+        // Animate slider
+        tabSlider.style.width = `${activeTabElement.offsetWidth}px`;
+        tabSlider.style.left = `${activeTabElement.offsetLeft}px`;
+
+        // Update tab text styles
+        Object.values(allTabs).forEach(tab => tab.classList.remove('tab-text-active'));
+        activeTabElement.classList.add('tab-text-active');
+
+        // Show/hide forms
+        Object.values(allForms).forEach(form => form.classList.add('hidden'));
+        allForms[mode].classList.remove('hidden');
+
+        if (mode === 'tracker') {
+            actionsContainer.classList.add('hidden');
+            previewContainer.classList.add('hidden');
+            renderTracker();
+        } else {
+            actionsContainer.classList.remove('hidden');
+            previewContainer.classList.remove('hidden');
+            if (mode === 'complaint') generateComplaintMessage();
+            else generateAssignmentMessage();
+        }
+    }
+
+    Object.keys(allTabs).forEach(key => allTabs[key].addEventListener('click', () => switchTab(key)));
+
+    complainerInput.addEventListener('input', () => {
+        const name = complainerInput.value.trim().toLowerCase();
+        if (complainerHistory[name]) {
+            const { tower, floor, flatNumber } = complainerHistory[name];
+            towerInput.value = tower;
+            floorInput.value = floor;
+            flatNumberInput.value = flatNumber;
+            showToast(`Welcome back, ${complainerInput.value}! Details autofilled.`);
+        }
+    });
+    towerInput.addEventListener('blur', () => { let val = towerInput.value.trim(); if (!isNaN(val) && val !== '') towerInput.value = 'T-' + val; else if (val.toLowerCase() === 'terrace') towerInput.value = 'Terrace'; generateComplaintMessage(); });
+    floorInput.addEventListener('blur', () => { let val = floorInput.value.trim(); if (!isNaN(val) && val !== '') floorInput.value = getOrdinalSuffix(parseInt(val)); generateComplaintMessage(); });
+    complaintForm.addEventListener('input', generateComplaintMessage);
+
+    assignmentForm.addEventListener('input', generateAssignmentMessage);
+    assignedToSelect.addEventListener('change', () => {
+        const otherInputContainer = otherAssignedToInput.parentElement;
+        if (assignedToSelect.value === 'Other') {
+            otherInputContainer.classList.remove('hidden');
+            otherInputContainer.querySelector('label').classList.remove('hidden');
+            otherAssignedToInput.classList.remove('hidden');
+        } else {
+            otherInputContainer.classList.add('hidden');
+        }
+    });
+
+    sendBtn.addEventListener('click', function() {
+        let result;
+        if (activeMode === 'complaint') {
+            result = generateComplaintMessage();
+            if (result) {
+                complaints.push(result.data);
+                complaintCounter++;
+                const { complainer, tower, floor, flatNumber } = result.data;
+                complainerHistory[complainer.toLowerCase()] = { tower, floor, flatNumber };
+                saveState();
+                complaintForm.reset();
+                updateComplaintIdDisplay();
+                showToast('Complaint Logged!');
+            } else { showToast('Please fill in all complaint details.', false); return; }
+        } else {
+            result = generateAssignmentMessage();
+            if (result) {
+                assignments.push(result.data);
+                assignmentCounter++;
+                saveState();
+                showToast('Assignment Logged!');
+            } else { showToast('Please fill in all assignment details.', false); return; }
+        }
+        
+        window.open(`https://wa.me/?text=${encodeURIComponent(result.message)}`, '_blank');
+        if (activeMode === 'complaint') messagePreview.value = "";
+    });
+
+    copyBtn.addEventListener('click', function() {
+        if (messagePreview.value) {
+            try {
+                const isReadonly = messagePreview.hasAttribute('readonly');
+                if (isReadonly) messagePreview.removeAttribute('readonly');
+                messagePreview.select();
+                document.execCommand('copy');
+                if (isReadonly) messagePreview.setAttribute('readonly', true);
+                window.getSelection().removeAllRanges();
+                showToast('Message copied to clipboard! ✅');
+            } catch (err) {
+                showToast('Could not copy message.', false);
+            }
+        }
+    });
+
+    function initializeApp() {
+        // Set default dates
+        const today = new Date().toISOString().split('T')[0];
+        startDateInput.value = today;
+        endDateInput.value = today;
+        
+        // Populate time dropdowns
+        populateTimeSlots(startTimeSelect);
+        populateTimeSlots(endTimeSelect);
+
+        // Set current time for start time
+        const now = new Date();
+        let hours = now.getHours();
+        let minutes = now.getMinutes();
+        minutes = Math.round(minutes / 15) * 15;
+        if (minutes === 60) {
+            minutes = 0;
+            hours = (hours + 1) % 24;
+        }
+        const ampm = hours >= 12 ? 'PM' : 'AM';
+        const hours12 = hours % 12 === 0 ? 12 : hours % 12;
+        const currentTimeString = `${String(hours12).padStart(2, '0')}:${String(minutes).padStart(2, '0')} ${ampm}`;
+        
+        startTimeSelect.value = currentTimeString;
+        endTimeSelect.value = "06:30 PM";
+
+        // Hide 'Other' input initially
+        otherAssignedToInput.parentElement.classList.add('hidden');
+
+        // Load all state
+        loadState();
+        // Initialize first tab
+        switchTab('complaint');
+        
+        // Adjust slider on window resize
+        window.addEventListener('resize', () => switchTab(activeMode));
+    }
+
+    initializeApp();
+});
+</script>
+
+</body>
+</html>
